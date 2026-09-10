@@ -25,16 +25,13 @@ One click. One lightning bolt. No preferences window.
 
 ## The whole app
 
-```
-┌─────────────────────────────────────────────┐
-│  ☀︎  ⌘  ⚡  ⌥  Wed 10 Sep  9:41            │   ← hollow bolt: Mac sleeps normally
-└─────────────────────────────────────────────┘
-                 ↑ click
-
-┌─────────────────────────────────────────────┐
-│  ☀︎  ⌘  ⚡  ⌥  Wed 10 Sep  9:41            │   ← filled bolt: Mac stays awake
-└─────────────────────────────────────────────┘
-```
+<div align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/menubar-dark.png">
+  <img src="docs/menubar-light.png" width="600"
+       alt="Two menubar strips. In the first, a hollow lightning bolt sits left of the wifi, battery and Control Centre icons, captioned 'sleep allowed'. In the second the bolt is filled with the six Apple logo colours, captioned 'keeping this Mac awake'.">
+</picture>
+</div>
 
 | | |
 |---|---|
@@ -192,9 +189,10 @@ The preview assets in `docs/` are generated, not hand-drawn:
 swiftc -O tools/make-preview.swift -o /tmp/make-preview && /tmp/make-preview
 ```
 
-That tool mirrors the icon compositing from `main.swift` at 120pt, so the previews are crisp vector
-renders rather than an upscaled 15×20 menubar raster. It's a documentation tool sitting outside the
-app, so if you change how the icon is drawn, change it in both places.
+That tool mirrors the icon compositing from `main.swift`, so the previews are crisp vector renders
+rather than upscaled menubar rasters. It emits the charge-up GIF and the eight-stage filmstrip at
+120pt, and the menubar mockup at the real 15pt size in a 24pt bar. It's a documentation tool sitting
+outside the app, so if you change how the icon is drawn, change it in both places.
 
 ### Implementation notes
 

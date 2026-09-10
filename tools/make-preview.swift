@@ -122,6 +122,123 @@ for t in themes {
     png(strip, to: "docs/stages-\(t.name).png")
 }
 
+// --- menubar mockup: where the icon actually lives, at true menubar scale ---
+// Rendered at 3x so it stays crisp, but the bolt is drawn at its real 15pt menubar size rather
+// than scaled up, so this is what you actually see.
+let barScale: CGFloat = 3
+let barConfig = NSImage.SymbolConfiguration(pointSize: 15, weight: .regular)
+let neighbours = ["wifi", "battery.75", "switch.2"].compactMap {
+    NSImage(systemSymbolName: $0, accessibilityDescription: nil)?.withSymbolConfiguration(barConfig)
+}
+
+/// Tints a symbol by compositing into its own transparent canvas. Doing this with .sourceAtop
+/// directly on the mockup would fill a solid block, because the opaque bar behind it already
+/// has alpha 1 everywhere.
+func tinted(_ img: NSImage, _ color: NSColor) -> NSImage {
+    NSImage(size: img.size, flipped: false) { rect in
+        img.draw(in: rect)
+        NSGraphicsContext.current?.compositingOperation = .sourceAtop
+        color.setFill()
+        rect.fill()
+        return true
+    }
+}
+
+func barIcon(ink: Double, outlineColor: NSColor) -> NSImage {
+    guard let o = NSImage(systemSymbolName: "bolt", accessibilityDescription: nil)?
+            .withSymbolConfiguration(barConfig),
+          let f = NSImage(systemSymbolName: "bolt.fill", accessibilityDescription: nil)?
+            .withSymbolConfiguration(barConfig)
+    else { return NSImage(size: NSSize(width: 15, height: 20)) }
+    let cv = NSSize(width: max(o.size.width, f.size.width), height: max(o.size.height, f.size.height))
+    func ctr(_ i: NSImage) -> NSRect {
+        NSRect(x: (cv.width - i.size.width)/2, y: (cv.height - i.size.height)/2,
+               width: i.size.width, height: i.size.height)
+    }
+    let fill = height(forInk: ink)
+    return NSImage(size: cv, flipped: false) { _ in
+        let line = cv.height * fill
+        NSGraphicsContext.saveGraphicsState()
+        NSBezierPath(rect: NSRect(x: 0, y: line, width: cv.width, height: cv.height - line)).setClip()
+        o.draw(in: ctr(o))
+        NSGraphicsContext.current?.compositingOperation = .sourceAtop
+        outlineColor.setFill(); NSRect(origin: .zero, size: cv).fill()
+        NSGraphicsContext.restoreGraphicsState()
+        if fill > 0 {
+            NSGraphicsContext.saveGraphicsState()
+            NSBezierPath(rect: NSRect(x: 0, y: 0, width: cv.width, height: line)).setClip()
+            f.draw(in: ctr(f))
+            NSGraphicsContext.current?.compositingOperation = .sourceAtop
+            for (i, color) in palette.enumerated() {
+                color.setFill()
+                let lo = bandEdges[i]*cv.height, hi = bandEdges[i+1]*cv.height
+                NSRect(x: 0, y: lo, width: cv.width, height: hi - lo).fill()
+            }
+            NSGraphicsContext.restoreGraphicsState()
+        }
+        return true
+    }
+}
+
+struct BarTheme { let name: String; let page: NSColor; let bar: NSColor; let ink: NSColor; let dim: NSColor }
+let barThemes = [
+    BarTheme(name: "light", page: rgb(0xFFFFFF), bar: rgb(0xEFEFF1),
+             ink: rgb(0x000000, alpha: 0.85), dim: rgb(0x000000, alpha: 0.5)),
+    BarTheme(name: "dark", page: rgb(0x0D1117), bar: rgb(0x232326),
+             ink: rgb(0xFFFFFF, alpha: 0.85), dim: rgb(0xFFFFFF, alpha: 0.5)),
+]
+let barW: CGFloat = 300, barH: CGFloat = 24, capH: CGFloat = 18, rowGap: CGFloat = 12
+let fadeW: CGFloat = 70          // left edge fades out: this is a crop of a full-width menubar
+let rowsSpec: [(Double, String)] = [(0.0, "sleep allowed"), (1.0, "keeping this Mac awake")]
+
+for t in barThemes {
+    let rowH = barH + capH
+    let total = CGFloat(rowsSpec.count) * rowH + rowGap
+    let img = NSImage(size: NSSize(width: barW * barScale, height: total * barScale))
+    img.lockFocus()
+    let gctx = NSGraphicsContext.current!
+    gctx.imageInterpolation = .high
+    gctx.cgContext.scaleBy(x: barScale, y: barScale)
+    t.page.setFill(); NSRect(x: 0, y: 0, width: barW, height: total).fill()
+
+    let capFont = NSFont.systemFont(ofSize: 11, weight: .regular)
+    let clockFont = NSFont.systemFont(ofSize: 13, weight: .regular)
+    let clock = NSAttributedString(string: "9:41",
+        attributes: [.font: clockFont, .foregroundColor: t.ink])
+
+    for (r, spec) in rowsSpec.enumerated() {
+        let rowTop = total - CGFloat(r) * (rowH + rowGap)
+        let barY = rowTop - barH
+        let capY = barY - capH
+
+        t.bar.setFill(); NSRect(x: 0, y: barY, width: barW, height: barH).fill()
+        NSGradient(starting: t.page, ending: t.page.withAlphaComponent(0))!
+            .draw(in: NSRect(x: 0, y: barY, width: fadeW, height: barH), angle: 0)
+
+        var x = barW - 14
+        x -= clock.size().width
+        clock.draw(at: NSPoint(x: x, y: barY + (barH - clock.size().height) / 2))
+        x -= 14
+        for n in neighbours.reversed() {
+            x -= n.size.width
+            tinted(n, t.ink).draw(in: NSRect(x: x, y: barY + (barH - n.size.height) / 2,
+                                             width: n.size.width, height: n.size.height))
+            x -= 12
+        }
+        let bolt = barIcon(ink: spec.0, outlineColor: t.ink)
+        x -= bolt.size.width
+        bolt.draw(in: NSRect(x: x, y: barY + (barH - bolt.size.height) / 2,
+                             width: bolt.size.width, height: bolt.size.height))
+
+        let cap = NSAttributedString(string: spec.1,
+            attributes: [.font: capFont, .foregroundColor: t.dim])
+        cap.draw(at: NSPoint(x: min(x, barW - 14 - cap.size().width),
+                             y: capY + (capH - cap.size().height) / 2))
+    }
+    img.unlockFocus()
+    png(img, to: "docs/menubar-\(t.name).png")
+}
+
 // --- animated GIF: the real timing, up then hold then down then hold ---
 let fps = 25.0, delay = 1.0 / fps, duration = 0.32
 func smoothstep(_ p: Double) -> Double { p * p * (3 - 2 * p) }
@@ -153,5 +270,5 @@ for t in themes {
     }
     guard CGImageDestinationFinalize(dest) else { fatalError("gif write failed") }
 }
-print("wrote docs/stages-{light,dark}.png and docs/charge-{light,dark}.gif")
+print("wrote docs/stages-*.png, docs/charge-*.gif, docs/menubar-*.png")
 print("gif frames: \(timeline.count) at \(Int(fps))fps")
