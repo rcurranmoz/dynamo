@@ -128,9 +128,16 @@ final class Dynamo: NSObject, NSApplicationDelegate {
         }
         let tint = outlineColor
         let img = NSImage(size: canvas, flipped: false) { _ in
-            // Hollow outline, tinted to match menubar text.
-            outline.draw(in: centered(outline))
+            let line = canvas.height * fill
+
+            // Hollow outline, tinted to match menubar text, drawn only ABOVE the fill line.
+            // `bolt` is a point taller than `bolt.fill`, so letting the two overlap leaves a
+            // pale rim peeking out from under the colour.
             NSGraphicsContext.saveGraphicsState()
+            NSBezierPath(rect: NSRect(x: 0, y: line,
+                                      width: canvas.width,
+                                      height: canvas.height - line)).setClip()
+            outline.draw(in: centered(outline))
             NSGraphicsContext.current?.compositingOperation = .sourceAtop
             tint.setFill()
             NSRect(origin: .zero, size: canvas).fill()
@@ -139,9 +146,7 @@ final class Dynamo: NSObject, NSApplicationDelegate {
             // Solid glyph up to the fill line, painted with the rainbow bands. sourceAtop keeps
             // the colour inside the glyph's own alpha, so the bolt shape does the masking.
             NSGraphicsContext.saveGraphicsState()
-            NSBezierPath(rect: NSRect(x: 0, y: 0,
-                                      width: canvas.width,
-                                      height: canvas.height * fill)).setClip()
+            NSBezierPath(rect: NSRect(x: 0, y: 0, width: canvas.width, height: line)).setClip()
             solid.draw(in: centered(solid))
             NSGraphicsContext.current?.compositingOperation = .sourceAtop
             for (i, color) in Self.palette.enumerated() {

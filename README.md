@@ -9,7 +9,15 @@ One click. One lightning bolt. No preferences window.
 [![Platform](https://img.shields.io/badge/platform-macOS%2013%2B-black?logo=apple&logoColor=white)](https://www.apple.com/macos/)
 [![Swift](https://img.shields.io/badge/Swift-AppKit-F05138?logo=swift&logoColor=white)](https://developer.apple.com/documentation/appkit)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](#build-it-yourself)
-[![Lines of code](https://img.shields.io/badge/source-~60%20lines-blue)](main.swift)
+[![Lines of code](https://img.shields.io/badge/source-~270%20lines-blue)](main.swift)
+
+<br>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/charge-dark.gif">
+  <img src="docs/charge-light.gif" width="136"
+       alt="A lightning bolt icon charging up through blue, purple, red, orange, yellow and green, then draining back to a hollow outline">
+</picture>
 
 </div>
 
@@ -39,10 +47,15 @@ The bolt doesn't just swap glyphs — it **charges up**, filling from the bottom
 second in the six colours of the old Apple logo, and drains back down when you switch it off. Click
 again mid-animation and it reverses from wherever it got to.
 
-```
- ⚡ hollow  →  ⚡ blue  →  ⚡ purple  →  ⚡ red  →  ⚡ orange  →  ⚡ yellow  →  ⚡ green
- idle          ·········  charging  ·········                            fully awake
-```
+<div align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/stages-dark.png">
+  <img src="docs/stages-light.png" width="820"
+       alt="Eight stages of the bolt filling: hollow outline, then blue, purple, red, orange, yellow and green bands rising to a fully coloured bolt">
+</picture>
+<br>
+<sub><b>idle</b> ·············· charging ·············· <b>fully awake</b></sub>
+</div>
 
 That's the entire interface. There is no window, no Dock icon, no menu bar, and no settings.
 
@@ -91,8 +104,8 @@ A lightning bolt appears in your menubar. Click it. Done.
 
 > **Why build instead of downloading a `.app`?** Because building locally means macOS never puts the
 > app in quarantine, so there's no "unidentified developer" warning, no Gatekeeper prompt, and no
-> right-click → Open dance. It's genuinely the easier path here, and you can read all 60 lines of
-> source first if you want to.
+> right-click → Open dance. It's genuinely the easier path here, and it's a single Swift file you can
+> read end to end first if you want to.
 
 ### Step 2 — start it automatically at login (optional)
 
@@ -173,6 +186,16 @@ open Dynamo.app
 artifact and is gitignored. The build targets `arm64-apple-macos13.0` — change the `-target` line in
 `build.sh` for Intel or an older minimum.
 
+The preview assets in `docs/` are generated, not hand-drawn:
+
+```bash
+swiftc -O tools/make-preview.swift -o /tmp/make-preview && /tmp/make-preview
+```
+
+That tool mirrors the icon compositing from `main.swift` at 120pt, so the previews are crisp vector
+renders rather than an upscaled 15×20 menubar raster. It's a documentation tool sitting outside the
+app, so if you change how the icon is drawn, change it in both places.
+
 ### Implementation notes
 
 - `LSUIElement` plus `NSApplication.setActivationPolicy(.accessory)` keeps Dynamo out of the Dock and
@@ -182,8 +205,9 @@ artifact and is gitignored. The build targets `arm64-apple-macos13.0` — change
   be gone.
 - Ad-hoc signing (`codesign --sign -`) gives the app a stable identity across rebuilds, so macOS
   doesn't re-evaluate it every time you rebuild.
-- The icons are the SF Symbols `bolt` and `bolt.fill`, so they follow your menubar's light/dark
-  appearance automatically.
+- The icons are the SF Symbols `bolt` and `bolt.fill`. At rest the plain template symbol is handed
+  straight to the menubar; the coloured frames are composited, and handle light/dark themselves (see
+  below).
 
 ### The fill animation
 
@@ -193,7 +217,10 @@ bottom. The two glyphs differ by a point in height, so each is centered at its n
 shared canvas rather than one being stretched to fit the other.
 
 The rainbow is painted with `.sourceAtop` compositing, which confines colour to the glyph's own alpha
-— the bolt shape does the masking, so no separate mask image is needed. Six flat bands beat a smooth
+— the bolt shape does the masking, so no separate mask image is needed. The outline is clipped to the
+*unfilled* region rather than drawn underneath: `bolt` is a point taller than `bolt.fill`, so letting
+them overlap leaves a pale rim peeking out around the colour. Invisible at 15×20, obvious the moment
+you render a preview at 120pt. Six flat bands beat a smooth
 gradient here: at 20 pixels tall a gradient collapses into an orange smear and loses green and blue
 entirely.
 
