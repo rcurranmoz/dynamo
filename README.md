@@ -33,11 +33,16 @@ One click. One lightning bolt. No preferences window.
 | **Left-click** the bolt | Toggle awake on / off |
 | **Right-click** the bolt | Show current state + **Quit** |
 | **Hollow** bolt | Idle — your Mac sleeps normally |
-| **Filled** bolt | Live — display and system sleep are blocked |
+| **Rainbow** bolt | Live — display and system sleep are blocked |
 
 The bolt doesn't just swap glyphs — it **charges up**, filling from the bottom over about a third of a
-second, and drains back down when you switch it off. Click again mid-animation and it reverses from
-wherever it got to.
+second in the six colours of the old Apple logo, and drains back down when you switch it off. Click
+again mid-animation and it reverses from wherever it got to.
+
+```
+ ⚡ hollow  →  ⚡ blue  →  ⚡ purple  →  ⚡ red  →  ⚡ orange  →  ⚡ yellow  →  ⚡ green
+ idle          ·········  charging  ·········                            fully awake
+```
 
 That's the entire interface. There is no window, no Dock icon, no menu bar, and no settings.
 
@@ -185,15 +190,44 @@ artifact and is gitignored. The build targets `arm64-apple-macos13.0` — change
 SF Symbols has no variable-value `bolt`, so the charge-up is composited by hand: the hollow `bolt`
 outline is drawn whole, then `bolt.fill` is drawn over it clipped to a rectangle that rises from the
 bottom. The two glyphs differ by a point in height, so each is centered at its natural size in a
-shared canvas rather than one being stretched to fit the other. The result is marked
-`isTemplate = true`, so the menubar still tints it for light/dark and click-highlight.
+shared canvas rather than one being stretched to fit the other.
 
-A rectangle rising at constant speed looks wrong, though. The bolt's ink is concentrated in its upper
-middle — the bottom 28% of its height holds only about 12% of its pixels — so a linear clip creeps up
-the thin tail for half the animation and then snaps solid. Dynamo fixes this by rasterizing the glyph
-once at launch, summing alpha per row to get a cumulative ink curve, and inverting it. Equal time then
-means equal ink. The curve is measured at runtime rather than baked in as a lookup table, so it stays
-correct if Apple ever redraws the symbol.
+The rainbow is painted with `.sourceAtop` compositing, which confines colour to the glyph's own alpha
+— the bolt shape does the masking, so no separate mask image is needed. Six flat bands beat a smooth
+gradient here: at 20 pixels tall a gradient collapses into an orange smear and loses green and blue
+entirely.
+
+### Measuring the glyph's ink
+
+A rectangle rising at constant speed looks wrong. The bolt's ink is concentrated in its upper middle
+— the bottom third of its height holds barely a tenth of its pixels — so a linear clip creeps up the
+thin tail for half the animation and then snaps solid. Equal-height colour bands have the same
+problem in reverse: green ends up a sliver on the tip while red and orange dominate.
+
+Both fall out of one measurement. At launch Dynamo rasterizes `bolt.fill` at 8× and sums alpha per row
+to build a cumulative ink curve, then inverts it. That inverse gets used twice:
+
+| Derived from the curve | Effect |
+|---|---|
+| 25 animation steps | Equal time means equal **ink**, so the fill reads smooth |
+| 7 band boundaries | Equal ink per colour, so all six are equally visible |
+
+The curve is measured at runtime rather than baked in as a lookup table, so it stays correct if Apple
+ever redraws the symbol. If the rasterization fails for any reason it falls back to plain linear
+spacing.
+
+### Light and dark
+
+Coloured images can't be template images, so the menubar won't tint them — which means the hollow part
+of a partially-filled bolt has to be tinted explicitly. Dynamo resolves `NSColor.labelColor` against
+`NSApp.effectiveAppearance` (black at 85% under Aqua, white at 85% under Dark Aqua) and bakes that into
+the frame. Because it's baked, the cache is dropped on `AppleInterfaceThemeChangedNotification` so a
+theme switch re-renders.
+
+The idle state is the exception: at rest Dynamo hands the menubar the plain `bolt` template symbol, so
+the icon you see 99% of the time gets native tinting and click-highlighting for free.
+
+### Caching
 
 Frames are quantized to 24 steps and cached, so a toggle rasterizes at most 24 images once and then
 replays them for free. Easing is smoothstep, and each animation starts from the current level rather
