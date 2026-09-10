@@ -91,7 +91,5 @@ login.
 
 ## Family
 
-Part of the RelOps tooling set alongside [Hangar](../hangar) (fleet dashboard),
-[BuildWatch](../BuildWatch) and [WorkerCTL](../WorkerCTL) (iOS), and
-[fleetroll](../fleetroll_mvp) (fleet CLI). Dynamo is by far the least ambitious of them, which is the
-point.
+Part of a personal RelOps tooling set — a fleet dashboard, a couple of iOS monitoring apps, a fleet
+CLI. Dynamo is by far the least ambitious of them, which is the point.
