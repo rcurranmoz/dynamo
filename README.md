@@ -35,6 +35,10 @@ One click. One lightning bolt. No preferences window.
 | **Hollow** bolt | Idle — your Mac sleeps normally |
 | **Filled** bolt | Live — display and system sleep are blocked |
 
+The bolt doesn't just swap glyphs — it **charges up**, filling from the bottom over about a third of a
+second, and drains back down when you switch it off. Click again mid-animation and it reverses from
+wherever it got to.
+
 That's the entire interface. There is no window, no Dock icon, no menu bar, and no settings.
 
 ## Why you might want it
@@ -175,6 +179,25 @@ artifact and is gitignored. The build targets `arm64-apple-macos13.0` — change
   doesn't re-evaluate it every time you rebuild.
 - The icons are the SF Symbols `bolt` and `bolt.fill`, so they follow your menubar's light/dark
   appearance automatically.
+
+### The fill animation
+
+SF Symbols has no variable-value `bolt`, so the charge-up is composited by hand: the hollow `bolt`
+outline is drawn whole, then `bolt.fill` is drawn over it clipped to a rectangle that rises from the
+bottom. The two glyphs differ by a point in height, so each is centered at its natural size in a
+shared canvas rather than one being stretched to fit the other. The result is marked
+`isTemplate = true`, so the menubar still tints it for light/dark and click-highlight.
+
+A rectangle rising at constant speed looks wrong, though. The bolt's ink is concentrated in its upper
+middle — the bottom 28% of its height holds only about 12% of its pixels — so a linear clip creeps up
+the thin tail for half the animation and then snaps solid. Dynamo fixes this by rasterizing the glyph
+once at launch, summing alpha per row to get a cumulative ink curve, and inverting it. Equal time then
+means equal ink. The curve is measured at runtime rather than baked in as a lookup table, so it stays
+correct if Apple ever redraws the symbol.
+
+Frames are quantized to 24 steps and cached, so a toggle rasterizes at most 24 images once and then
+replays them for free. Easing is smoothstep, and each animation starts from the current level rather
+than from 0 or 1, which is what makes a mid-flight click reverse smoothly instead of snapping.
 
 ---
 
